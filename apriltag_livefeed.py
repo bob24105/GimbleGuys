@@ -17,11 +17,12 @@ class AprilTag:
 ## Camera Setup ##
 
 # Initialize the camera
+Camera_Index = 1
 try: 
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(Camera_Index)
     cap.isOpened() == True
 except:
-    cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+    cap = cv2.VideoCapture(Camera_Index, cv2.CAP_DSHOW)
 
 if not cap.isOpened():
     print("Error: Could not open camera.")
