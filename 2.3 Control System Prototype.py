@@ -295,6 +295,11 @@ TRANSITIONDISTANCE = 2 # [in] distance (from tag to projected location) for tran
 CONFIDENCECOUNT = 0 # number of times all criteria is to be met before transistion
 
 
+### Regime 4 parameters
+Ts4 = 0.1                    # [s] Sample time
+ESCAPEFORCE = 5              # [lb] Force required to escape regime 4
+
+
 
 
 
@@ -539,6 +544,12 @@ cameraThread.start()
 
 
 ''' Define states '''
+### State variables ###
+STATE_calibration = 0
+STATE_regime1 = 1
+STATE_regime2 = 2
+
+
 ### Calibration ###
 def calibration():
     # Define global variables
@@ -728,24 +739,56 @@ def regime2():
     return
 
 
-### Exit ###
-            
-            
 
-### State variables ###
-STATE_calibration = 0
-STATE_regime1 = 1
-STATE_regime2 = 2
 
-currState= STATE_calibration
+### Regime 4 ###
+def regime4(tgtPosition):
+    global sensor
+    global group
+    global arm_command
+    global arm_feedback    
+    
+    nextTime = time.perf_counter()
+    while True:
+        ### Command the robot to hold its position ###
+        arm_command.position = [tgtPosition[0], tgtPosition[1], -(positionRaw[0] + positionRaw[1]) + OFFSET]
+        group.send_command(arm_command)
+        
+        
+        
+        ### Regime 3 -> Regime 1 Transition ###
+        
+        # Get raw force vector from FT sensor
+        forceRaw = sensor.force()
+        forceRaw = np.array([x / cpf for x in forceRaw])
+        
+        if np.linalg.norm(forceRaw) > ESCAPEFORCE:
+            return STATE_regime1
+        
+        
+        
+        
+        ### Wait until next iteration of clock cycle ###
+        nextTime += Ts4
+        sleepTime = nextTime - time.perf_counter()
+        if sleepTime > 0:
+            time.sleep(sleepTime)
+    
 
-stateFunctions = [calibration, regime1, regime2]
+
+
+
+### Define the stateFunctions array ###
+stateFunctions = [calibration, regime1, regime2, regime4]
 
 
 
 
 
 ''' Main loop to govern the finite state machine '''
+# Define initial state
+currState = STATE_calibration
+
 ### Main loop ###
 while not stopSignal:
     currState = stateFunctions[currState]()
