@@ -257,7 +257,7 @@ VMAX = 9.84                  # [in/s] Max end effector velocity
 ### Physical system parameters ###
 l1 = 10                      # [in] Link 1 length
 l2 = 10                      # [in] Link 2 length
-OFFSET = 180                 # [degrees] Angle of wrist offset from being level
+OFFSET = 0                   # [degrees] Angle of wrist offset from being level
 OFFSET *= 2 * np.pi / 360    # [rad] Converts to radians
 
 ### FT sensor ###
@@ -544,14 +544,8 @@ cameraThread.start()
 
 
 ''' Define states '''
-### State variables ###
-STATE_calibration = 0
-STATE_regime1 = 1
-STATE_regime2 = 2
-
-
 ### Calibration ###
-def calibration():
+def calibration(args):
     # Define global variables
     global sensor
     global group
@@ -590,13 +584,13 @@ def calibration():
     time.sleep(0.1)
     
     # Update current state
-    return STATE_regime1
+    return regime1, None
 
 
 
 
 ### Regime 1 ###
-def regime1():
+def regime1(args):
     # Define global variables
     global sensor
     global group
@@ -733,10 +727,10 @@ def regime1():
 
 
 ### Regime 2 ###
-def regime2():
+def regime2(args):
     while not stopSignal:
         print("regime 2 initaited")
-    return
+    return regime3, None
 
 
 
@@ -751,7 +745,7 @@ def regime4(tgtPosition):
     nextTime = time.perf_counter()
     while True:
         ### Command the robot to hold its position ###
-        arm_command.position = [tgtPosition[0], tgtPosition[1], -(positionRaw[0] + positionRaw[1]) + OFFSET]
+        arm_command.position = [tgtPosition[0], tgtPosition[1], -(tgtPosition[0] + tgtPosition[1]) + OFFSET]
         group.send_command(arm_command)
         
         
@@ -763,7 +757,7 @@ def regime4(tgtPosition):
         forceRaw = np.array([x / cpf for x in forceRaw])
         
         if np.linalg.norm(forceRaw) > ESCAPEFORCE:
-            return STATE_regime1
+            return regime1, None
         
         
         
@@ -778,20 +772,15 @@ def regime4(tgtPosition):
 
 
 
-### Define the stateFunctions array ###
-stateFunctions = [calibration, regime1, regime2, regime4]
-
-
-
-
 
 ''' Main loop to govern the finite state machine '''
 # Define initial state
-currState = STATE_calibration
+currState = calibration
+args = None
 
 ### Main loop ###
 while not stopSignal:
-    currState = stateFunctions[currState]()
+    currState, args = currState(args)
 
 ### Exit state ###
 # Deactivate FT sensor
