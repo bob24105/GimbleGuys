@@ -288,11 +288,8 @@ g2 = [cont2sos(integrator), cont2sos(integrator)]
 ## Regime I transition parameters
 
 VELTRANSITION = .5*VMAX
-TRANSITIONANGLE = 30 # feild of view to continue transition process in degrees
-TRANSITIONANGLE = np.deg2rad(TRANSITIONANGLE) # [rad]
 VELDISCONSTANT = 0.6 # Constant to convert velocity to distance for projected location
 TRANSITIONDISTANCE = 1 # [in] distance (from tag to projected location) for transistion 
-CONFIDENCECOUNT = 0 # number of times all criteria is to be met before transistion
 
 
 ### Regime 4 parameters
@@ -689,26 +686,19 @@ def regime1(args):
         
         ### State Transition Criteria ###
         for tag in visibleAprilTags:
-            if np.linalg.norm(velEE) < VELTRANSITION: # Check speed less than threshold
-                tagPos = np.array([tag.x, tag.y]) # vector from center of camera to tag [x y]
-                # forceMag = np.linalg.norm(force) # Magnitude of force vector
-                # tagVectorMag = np.linalg.norm(tagPos) # Postion Vector Magnitude
-                # tagForceAngle = np.arccos(np.dot(tagPos, force) / (tagVectorMag*forceMag)) # Use dot product to angle equation
-                # print("passed vel check for" + tag.ID)
-                # if tagForceAngle < TRANSITIONANGLE:
-                    # ADD BEEP NOISES
-                    # print("passed angle check for", tag.id)
+            
+            # Check if speed less than max threshold
+            if np.linalg.norm(velEE) < VELTRANSITION: 
+                tagPos = np.array([tag.x, tag.y])                                      # Vector from center of camera to tag (x, y)
+                
+                # ADD BEEP NOISES
+                
                 projLoc = np.array([velEE[0]*VELDISCONSTANT, velEE[1]*VELDISCONSTANT]) # projected distance of end effector based on velocity
                 distanceProjTag = np.sqrt((projLoc[0] - tagPos[0])**2 + (projLoc[1] - tagPos[1])**2)
-                print("Projected Location", projLoc[0], projLoc[1])
-                print("from ", tag.id, " to projected location distance is", distanceProjTag)
-                if distanceProjTag < TRANSITIONDISTANCE: # Check distance threshold
-                    triggerCount += 1
-                    print("passed distance check for", tag.id)
-                    if triggerCount > CONFIDENCECOUNT: # Check number of times we have hit all criteria
-                        # Potential bug: trigger count doesn't reset until we reenter regime 1
-                        print("locked on tag", tag.id)
-                        return regime2, None
+                
+                # Check if distance less than max distance threshhold
+                if distanceProjTag < TRANSITIONDISTANCE:
+                    return regime2, tag.id
                         
                     
         
@@ -732,7 +722,7 @@ def regime2(args):
     print("regime 2 initaited")
     while not stopSignal:
         
-        return None, None
+    return None, None
 
 
 
