@@ -265,7 +265,7 @@ MINFORCE = 0.3               # [lb] Minimum force that will be detected
 
 ### Camera parameters ###
 CAMERAINDEX = 1              # Index that specifies one of the total # of connected cameras
-TAGSIZE = 1.87               # [in] Side length of April Tag
+TAGSIZE = 0.875               # [in] Side length of April Tag
 TAGSIZE *= 0.0254            # [m] Converts to meters
 
 ### Regime I parameters ###
@@ -287,11 +287,11 @@ g2 = [cont2sos(integrator), cont2sos(integrator)]
 
 ## Regime I transition parameters
 
-VELTRANSITION = .7*VMAX
+VELTRANSITION = .5*VMAX
 TRANSITIONANGLE = 30 # feild of view to continue transition process in degrees
 TRANSITIONANGLE = np.deg2rad(TRANSITIONANGLE) # [rad]
 VELDISCONSTANT = 2 # Constant to convert velocity to distance for projected location
-TRANSITIONDISTANCE = 2 # [in] distance (from tag to projected location) for transistion 
+TRANSITIONDISTANCE = 0.1 # [in] distance (from tag to projected location) for transistion 
 CONFIDENCECOUNT = 0 # number of times all criteria is to be met before transistion
 
 
@@ -503,7 +503,7 @@ def startCameraThread():
 
 
                 # Print information
-                print(f"Tag ID: {tag_id}, Position: {pose_t.flatten()}")
+                # print(f"Tag ID: {tag_id}, Position: {pose_t.flatten()}")
                 # print(f"Tag Center: {center}")
                 # print(f"Position: {pose_t.flatten()}")
                 # print(f"Rotation Matrix:\n{pose_R}")
@@ -620,7 +620,7 @@ def regime1(args):
         force = forceRaw[0:2] # [lb] Input forces in the XY plane
         force = np.array([x if abs(x) > MINFORCE else 0 for x in force])
         force = rotate(force, OFFSET)
-        print(visibleAprilTags)
+        # print(visibleAprilTags)
         
         # Get state of actuators
         arm_feedback = group.get_next_feedback(reuse_fbk=arm_feedback)
@@ -696,18 +696,17 @@ def regime1(args):
                 # print("passed vel check for" + tag.ID)
                 if tagForceAngle < TRANSITIONANGLE:
                     # ADD BEEP NOISES
-                    print("passed angle check for" + tag.ID)
+                    print("passed angle check for", tag.id)
                     projLoc = np.array([velEE[0]*VELDISCONSTANT, velEE[1]*VELDISCONSTANT]) # projected distance of end effector based on velocity
                     distanceProjTag = np.sqrt((projLoc[0] - tagPos[0])**2 + (projLoc[1] - tagPos[1])**2)
                     print("Projected Location", projLoc[0], projLoc[1])
                     if distanceProjTag < TRANSITIONDISTANCE: # Check distance threshold
                         triggerCount += 1
-                        print("passed distance check for" + tag.ID)
+                        print("passed distance check for", tag.id)
                         if triggerCount > CONFIDENCECOUNT: # Check number of times we have hit all criteria
                             # Potential bug: trigger count doesn't reset until we reenter regime 1
-                            print("locked on " + tag.ID)
-                            currState = STATE_regime2 # update curr state
-                            break
+                            print("locked on ", tag.id)
+                            return regime2, None
                         
                     
         
@@ -728,9 +727,10 @@ def regime1(args):
 
 ### Regime 2 ###
 def regime2(args):
+    print("regime 2 initaited")
     while not stopSignal:
-        print("regime 2 initaited")
-    return regime3, None
+        
+        return regime3, None
 
 
 
