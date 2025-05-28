@@ -8,9 +8,6 @@ from scipy import signal
 from pynput import keyboard
 import cv2								# "pip install opencv-python"
 from pupil_apriltags import Detector	# "pip install pupil-apriltags"
-import winsound
-from playsound import playsound
-import simpleaudio as sa
 
 
 
@@ -250,51 +247,6 @@ def processRawForce(forceRaw):
     
     
     return force
-
-
-
-'''
-    ###  BEEPZ CODE  ###
-# beepz for regime 2A
-# beeps after regime 1 switching into regime 2A
-def one2twoPitch(frequency, duration, numBeeps, increase):
-                #(pitch of beeps, how long the beeps last, how many beeps, how much to increase pitch from the last)    
-    for _ in range(numBeeps):
-        winsound.Beep(frequency, duration)
-        time.sleep(0.001)
-        frequency += increase
-
-# beepz for two2one transition
-def two2one(frequency, duration, numBeeps, freq2, dur2, numBeeps2):
-    for _ in range(numBeeps):
-        winsound.Beep(frequency, duration)
-        time.sleep(0.001)
-    time.sleep(1)
-    for _ in range(numBeeps2):
-        winsound.Beep(freq2, dur2)
-        time.sleep(0.001)
-
-
-# calibration beepz
-def calibrationBeeps(frequency, duration, increase, timeIncrease):
-        winsound.Beep(frequency, duration)
-        winsound.Beep(frequency, duration)
-        winsound.Beep((frequency + increase), duration)
-        winsound.Beep(frequency, timeIncrease)
-
-        
-        
-def play_sound_async(filepath):
-    playsound(filepath, block=False)  # block=False makes it asynchronous
- '''
-
-def sa_async(filename):
-    try:
-        wave_obj = sa.WaveObject.from_wave_file(filename)
-        wave_obj.play()
-    except Exception as e:
-        print("something is wrong with the audio")
-        
     
 
 # Convert the raw torque readings from the FT sensor into a more useable form
@@ -757,6 +709,7 @@ cameraThread.start()
 
 
 
+forceData = []
 velData = []
 
 
@@ -769,15 +722,8 @@ def calibration(tgtPosition):
     global WEIGHT
     
     
-    sa_async("grubby_mitts.wav")
-    #playsound("grubby_mitts.wav", block = False)
-    
-    
     # Turn off recalibration signal
     recalibrateSignal.clear()
- 
-    # calibration beeos
-    
  
     # Console log
     print("\nCalibrating")
@@ -854,16 +800,13 @@ def calibration(tgtPosition):
     
        
     
-    sa_async("calibration_finished.wav")
-
+    
     
     
     # Console log
     print("Calibration complete")
     print(f"F0 = {F0}")
     print(f"WEIGHT = {WEIGHT}")
-    
-    #playsound("calibration_finished.wav", block = False)
     
     return regime1, tgtPosition
 
@@ -911,7 +854,6 @@ def regime1(tgtPosition):
     global group
     global arm_command
     global arm_feedback
-    
     
     
     
@@ -1042,7 +984,7 @@ def regime1(tgtPosition):
         ### State Transition Criteria ###
         for tag in visibleAprilTags:
             
-            # Check if speed less than max threshold
+            # Check if speed less thTRANSITIONANGLEan max threshold
             if np.linalg.norm(velEE) < VELTRANSITION: 
                 tagPos = rotate([tag.x, tag.y], sum(positionRaw)) # Vector from center of camera to tag in Global coordinate frame (x, y)
                 
@@ -1061,8 +1003,8 @@ def regime1(tgtPosition):
         
         
         
-        
-        
+        forceData.append([np.linalg.norm(force), 1])
+        velData.append(np.linalg.norm(velEE))
         
         
         ### Wait until next iteration of clock cycle ###
@@ -1106,8 +1048,6 @@ def regime2(args):
     # Define global variables
     global arm_feedback
     
-    #playsound("auto.wav", block = False)
-    sa_async("auto.wav")
     
     # Unpack args
     tgtTagID = args[0]
@@ -1125,7 +1065,7 @@ def regime2(args):
     
     
     # Initialize the time of last april tag in frame
-    lastSeenTime = time.time()
+    lastSeemTime = time.time()
     
     # Loop to update robot position    
     nextTime = time.perf_counter()
@@ -1176,7 +1116,7 @@ def regime2(args):
             
             
             ## Find rotational component of the velEE ##
-
+            
             # Convert tag angle to angular velocity
             omegaEE = cascade(tagAngleRelative, controllerR2B)
                         
@@ -1229,9 +1169,9 @@ def regime2(args):
             tgtPosition[2] += omegaEE * Ts
             
             
-
+            
+            
             ### Send position control to the robot ###
-
             arm_command.position = [tgtPosition[0], tgtPosition[1], tgtPosition[2]]
 
             group.send_command(arm_command)
@@ -1255,13 +1195,13 @@ def regime2(args):
         force = forceProcessed[0:2]
         forceZ = forceProcessed[2]
         
-        if np.linalg.norm(force) > ESCAPEFORCE:      
+        if np.linalg.norm(force) > ESCAPEFORCE:
             return regime1, tgtPosition
-            #0two2one(1500, 250, 2, 2000, 500, 1)
         
         
         
         
+        forceData.append([np.linalg.norm(force), 2])
         
         
         ### Wait until next iteration of clock cycle ###
@@ -1356,6 +1296,13 @@ keyListeningThread.join()
 print("\nDeactivating camera")
 cameraThread.join()
 print("Camera deactivated")
+
+
+### Data Logging ###
+#np.savetxt('forceData.csv', forceData, delimiter=',', fmt='%f')
+#np.savetxt('velData.csv', velData, delimiter=',', fmt='%f')
+
+
 
 
 
