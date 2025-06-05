@@ -8,8 +8,6 @@ from scipy import signal
 from pynput import keyboard
 import cv2								# "pip install opencv-python"
 from pupil_apriltags import Detector	# "pip install pupil-apriltags"
-import winsound
-from playsound import playsound
 import simpleaudio as sa
 
 
@@ -243,7 +241,7 @@ def processRawForce(forceRaw):
     forceXY = forceXY - WEIGHT
     
     # Only read the force if it's above MINFORCE
-    forceXY = deadzone(forceXY, MINFORCE, False)
+    forceXY = deadzone(forceXY, MINFORCE, True)
     
     # Add the z-force back in
     force = np.array([forceXY[0], forceXY[1], forceRaw[2]])
@@ -252,48 +250,20 @@ def processRawForce(forceRaw):
     return force
 
 
-
-'''
-    ###  BEEPZ CODE  ###
-# beepz for regime 2A
-# beeps after regime 1 switching into regime 2A
-def one2twoPitch(frequency, duration, numBeeps, increase):
-                #(pitch of beeps, how long the beeps last, how many beeps, how much to increase pitch from the last)    
-    for _ in range(numBeeps):
-        winsound.Beep(frequency, duration)
-        time.sleep(0.001)
-        frequency += increase
-
-# beepz for two2one transition
-def two2one(frequency, duration, numBeeps, freq2, dur2, numBeeps2):
-    for _ in range(numBeeps):
-        winsound.Beep(frequency, duration)
-        time.sleep(0.001)
-    time.sleep(1)
-    for _ in range(numBeeps2):
-        winsound.Beep(freq2, dur2)
-        time.sleep(0.001)
-
-
-# calibration beepz
-def calibrationBeeps(frequency, duration, increase, timeIncrease):
-        winsound.Beep(frequency, duration)
-        winsound.Beep(frequency, duration)
-        winsound.Beep((frequency + increase), duration)
-        winsound.Beep(frequency, timeIncrease)
-
-        
-        
-def play_sound_async(filepath):
-    playsound(filepath, block=False)  # block=False makes it asynchronous
- '''
+last = {}
 
 def sa_async(filename):
-    try:
-        wave_obj = sa.WaveObject.from_wave_file(filename)
-        wave_obj.play()
-    except Exception as e:
-        print("something is wrong with the audio")
+    global last
+    now = time.time()
+    last_played = last.get(filename, 0)
+    if now - last_played >= 2:
+        
+        try:
+            wave_obj = sa.WaveObject.from_wave_file(filename)
+            wave_obj.play()
+            last[filename] = now
+        except Exception as e:
+        	print("\nSound file not found")
         
     
 
@@ -399,6 +369,16 @@ EECAMERAOFFSET = 5           # [in] Offset between end effector and camera origi
 
 
 
+
+### Audio filepaths
+SOUND_CALIBRATIONSTART = "Sound Bytes/cal_in_progress.wav"
+SOUND_CALIBRATIONEND = "Sound Bytes/calibration_finished.wav"
+SOUND_R2START = "Sound Bytes/auto.wav"
+
+
+
+
+
 ### FT sensor ###
 # The FT sensor returns data in units of [counts]
 # The following two values are correction factors
@@ -409,12 +389,12 @@ HOLDTIME = 3                 # [s] How long the arm will hold its position for b
 CALTHETA = 30                # [degrees] Change in wrist angle between each calibration measurement
 CALTHETA *= 2 * np.pi / 360  # [rad] Converts to radians
 
-MINFORCE = 0.5               # [lb] Minimum force that will be detected
-MINTORQUE = 5                # [lb-in]
+MINFORCE = 0.5             # [lb] Minimum force that will be detected
+MINTORQUE = 3                # [lb-in]
 
 # Calibration values to start with. Comment this section out if you want it to calibrate at the start
-F0 = np.array([0.41627094, 3.84162734])   # [lb] The offset of the FT sensor
-WEIGHT = rotate([ 0.  ,       -3.15399939], OFFSET)  # [lb] The weight vector of the payload
+F0 = np.array([-2.58038716,  2.54978782])   # [lb] The offset of the FT sensor
+WEIGHT = rotate([ 0, -2.62883703], OFFSET)  # [lb] The weight vector of the payload
  
  
  
@@ -430,7 +410,7 @@ TAGSIZE *= 0.0254            # [m] Converts to meters
 
 
 ### Singularity parameters ###
-THETA2MAX = (9/10) * np.pi   # [rad] Max angle of elbow joint to prevent singularities
+THETA2MAX = (8/10) * np.pi   # [rad] Max angle of elbow joint to prevent singularities
 THETA2MIN = (1/10) * np.pi   # [rad] Min angle of elbow joint to prevent singularities
 
 
@@ -445,19 +425,19 @@ VMIN = 0.1				     # [in/s] Velocity deadzone. Any velocity below this magnitude
 OMEGAMIN = 0.1               # [rad/s] Angular velocity deadzone
 
 ## Create controllerR1A transfer function: low pass filter for the input signal ##
-K = 4                        # [] Controller gain
+K = 8                        # [] Controller gain
 omegaC = 10000               # [rad/s] Controller lowpass filter cutoff frequency
 lowPass = ctm.tf(K * omegaC, [1, omegaC])
 controllerR1A = [cont2sos(lowPass), cont2sos(lowPass)] # Different biquad arrays are needed for the x and y components
 
 ## Create controllerR1B transfer function: proportional controller for torque control ##
-KT = 0.1                     # [] Controller gain
+KT = 0.2                     # [] Controller gain
 
 ## Regime I transition parameters ##
 VELTRANSITION = .5 * VMAX     	# [in/s] Max end effector velocity for transition to occur
 VELDISCONSTANT = 0.6         	# [] Coefficient to convert velocity vector to projected position vector
 TRANSITIONDISTANCE = 1       	# [in] Max distance (from tag to projected distance) for transistion to occur
-TRANSITIONANGLE = 7.5        	# [degrees] Max angle of tag for transition to occur
+TRANSITIONANGLE = 45        	# [degrees] Max angle of tag for transition to occur
 TRANSITIONANGLE *= np.pi / 180  # [rad] Convert to radians
 
 
@@ -489,7 +469,7 @@ OMEGAMAX2B = np.pi / 8       # [rad/s] Max angular velocity of autonomous regime
 
 
 ### Regime 2C parameters ###
-ESCAPEFORCE = 3              # [lb] Force required to escape regime 4
+ESCAPEFORCE = 1              # [lb] Force required to escape regime 4
 
 
 
@@ -769,9 +749,8 @@ def calibration(tgtPosition):
     global WEIGHT
     
     
-    sa_async("grubby_mitts.wav")
-    #playsound("grubby_mitts.wav", block = False)
-    
+    sa_async(SOUND_CALIBRATIONSTART)
+    time.sleep(1.5)
     
     # Turn off recalibration signal
     recalibrateSignal.clear()
@@ -854,7 +833,7 @@ def calibration(tgtPosition):
     
        
     
-    sa_async("calibration_finished.wav")
+    sa_async(SOUND_CALIBRATIONEND)
 
     
     
@@ -1055,6 +1034,7 @@ def regime1(tgtPosition):
                                     
                     # Check if distance between projected location and tag is less than threshold
                     if distanceProjTag < TRANSITIONDISTANCE:
+                        sa_async(SOUND_R2START)
                         return regime2, [tag.id, tgtPosition]
                         
                     
@@ -1106,8 +1086,6 @@ def regime2(args):
     # Define global variables
     global arm_feedback
     
-    #playsound("auto.wav", block = False)
-    sa_async("auto.wav")
     
     # Unpack args
     tgtTagID = args[0]
@@ -1356,6 +1334,7 @@ keyListeningThread.join()
 print("\nDeactivating camera")
 cameraThread.join()
 print("Camera deactivated")
+
 
 
 
